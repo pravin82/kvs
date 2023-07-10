@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate clap;
 
+use std::collections::HashMap;
 use std::process::exit;
 use clap::{App, AppSettings, Arg, SubCommand};
 fn main(){

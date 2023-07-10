@@ -1,17 +1,23 @@
-pub struct KvStore;
+use std::collections::HashMap;
+
+pub struct KvStore {
+    memoryDB: HashMap<String, String>
+}
 
 impl KvStore {
+
     pub fn new()->KvStore{
-        KvStore
+        let mut memoryDB = HashMap::new();
+        KvStore{memoryDB}
     }
-    pub fn set(&self,key:String, value:String){
-        panic!("Not implemented")
+    pub fn set(&mut self, key:String, value:String) -> Option<String> {
+       self.memoryDB.insert(key, value)
     }
     pub fn get(&self,key:String) -> Option<String>{
-        panic!("Not implemented")
+       self.memoryDB.get(&key).cloned()
     }
 
-    pub fn remove(&self,key:String){
-        panic!("Not implemented")
+    pub fn remove(&mut self, key:String) -> Option<String>{
+       self.memoryDB.remove(&key)
     }
 }
