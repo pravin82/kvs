@@ -62,7 +62,7 @@ fn cli_set() {
 }
 
 #[test]
-fn cli_get_stored() -> Result<(), E> {
+fn cli_get_stored() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
 
     let mut store = KvStore::open(temp_dir.path())?;
@@ -91,7 +91,7 @@ fn cli_get_stored() -> Result<(), E> {
 
 // `kvs rm <KEY>` should print nothing and exit with zero.
 #[test]
-fn cli_rm_stored() -> Result<(),E> {
+fn cli_rm_stored() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
 
     let mut store = KvStore::open(temp_dir.path())?;
@@ -179,7 +179,7 @@ fn cli_invalid_subcommand() {
 
 // Should get previously stored value.
 #[test]
-fn get_stored_value() -> Result<(),E> {
+fn get_stored_value() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let mut store = KvStore::open(temp_dir.path())?;
 
@@ -200,7 +200,7 @@ fn get_stored_value() -> Result<(),E> {
 
 // Should overwrite existent value.
 #[test]
-fn overwrite_value() -> Result<(),E> {
+fn overwrite_value() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let mut store = KvStore::open(temp_dir.path())?;
 
@@ -221,7 +221,7 @@ fn overwrite_value() -> Result<(),E> {
 
 // Should get `None` when getting a non-existent key.
 #[test]
-fn get_non_existent_value() -> Result<(),E> {
+fn get_non_existent_value() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let mut store = KvStore::open(temp_dir.path())?;
 
@@ -237,7 +237,7 @@ fn get_non_existent_value() -> Result<(),E> {
 }
 
 #[test]
-fn remove_non_existent_key() -> Result<(),E> {
+fn remove_non_existent_key() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let mut store = KvStore::open(temp_dir.path())?;
     assert!(store.remove("key1".to_owned()).is_err());
@@ -245,7 +245,7 @@ fn remove_non_existent_key() -> Result<(),E> {
 }
 
 #[test]
-fn remove_key() -> Result<(),E> {
+fn remove_key() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let mut store = KvStore::open(temp_dir.path())?;
     store.set("key1".to_owned(), "value1".to_owned())?;
@@ -257,7 +257,7 @@ fn remove_key() -> Result<(),E> {
 // Insert data until total size of the directory decreases.
 // Test data correctness after compaction.
 #[test]
-fn compaction() -> Result<(),E> {
+fn compaction() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let mut store = KvStore::open(temp_dir.path())?;
 

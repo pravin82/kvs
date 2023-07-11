@@ -1,4 +1,7 @@
+use core::result;
 use std::collections::HashMap;
+extern crate failure;
+use failure::Error;
 
 pub struct KvStore {
     memory_db: HashMap<String, String>,
@@ -26,3 +29,4 @@ impl KvStore {
         self.memory_db.remove(&key)
     }
 }
+pub type Result<T> = result::Result<T, Error>;
