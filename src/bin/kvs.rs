@@ -1,7 +1,13 @@
 extern crate clap;
 
+use std::env::current_dir;
+use std::ops::Deref;
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::process::exit;
+use tempfile::TempDir;
+use kvs::KvStore;
+use kvs::Log;
+
 fn main() {
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
@@ -33,12 +39,23 @@ fn main() {
         .get_matches();
     match matches.subcommand() {
         ("set", Some(_matches)) => {
-            eprintln!("unimplemented");
-            exit(1);
+            let key = _matches.value_of("KEY").unwrap();
+            let value =  _matches.value_of("VALUE").unwrap();
+            exit(0);
         }
         ("get", Some(_matches)) => {
-            eprintln!("unimplemented");
-            exit(1);
+            let key = _matches.value_of("KEY").unwrap();
+            let mut store = KvStore::open(current_dir().unwrap().as_path()).unwrap();
+            let value =  store.get(key.to_string()).unwrap().unwrap();
+            let logs = value.lines();
+            for log_str in logs{
+                let log: Log = serde_json::from_str(log_str).unwrap();
+                //eprintln!("log:{:?}",log);
+                store.memory_db.insert(log.key,log.value);
+
+            }
+            println!("{}",store.memory_db.get(key).unwrap());
+            exit(0);
         }
         ("rm", Some(_matches)) => {
             eprintln!("unimplemented");
@@ -47,3 +64,4 @@ fn main() {
         _ => unreachable!(),
     }
 }
+
