@@ -46,8 +46,12 @@ fn main() {
         ("get", Some(_matches)) => {
             let key = _matches.value_of("KEY").unwrap();
             let mut store = KvStore::open(current_dir().unwrap().as_path()).unwrap();
-            let value =  store.get(key.to_string()).unwrap().unwrap();
-            println!("{}",value);
+            let value =  store.get(key.to_string()).unwrap();
+            if let Some(i) = value{
+                println!("{}",i);
+            } else {
+                println!("Key not found");
+            }
             exit(0);
         }
         ("rm", Some(_matches)) => {
