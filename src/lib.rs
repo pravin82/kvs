@@ -7,7 +7,7 @@ use std::io::prelude::*;
 extern crate serde_json;
 use failure::Fail;
 use std::io;
-
+use std::io::{BufReader, SeekFrom};
 
 
 extern crate failure;
@@ -16,7 +16,7 @@ use serde_json::to_string;
 
 pub struct KvStore {
     file: File,
-    memory_db:HashMap<String,String>
+    memory_db:HashMap<String,u64>
 }
 
 
@@ -25,16 +25,29 @@ impl KvStore {
     pub fn set(&mut self, key: String, value: String) -> Result<Option<String>> {
         let log = Log{command: Command::SET,key:key.to_string(),value:value.to_string()};
         let log_str = serde_json::to_string(&log).unwrap();
-        //println!("log string to be written: {}", log_str);
+        let current_position = self.file.stream_position().unwrap();
         let resp = writeln!(self.file,"{}",log_str);
         if(resp.is_ok()){
-            self.memory_db.insert(key, value);
+            self.memory_db.insert(key, current_position);
         }
         Ok(Some("SUCCESS".to_string()))
     }
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        let value = self.memory_db.get(&*key);
-        Ok(value.cloned())
+        let mut f = BufReader::new(&self.file);
+        let mut buf = String::new();
+        let line_offset = self.memory_db.get(&*key);
+        if let Some(i) = line_offset {
+            f.seek(SeekFrom::Start(*line_offset.unwrap()));
+            let value = self.memory_db.get(&*key);
+            f.read_line(&mut buf);
+            let log: Log = serde_json::from_str(&*buf).unwrap();
+            Ok(Some(log.value))
+
+        }
+        else {
+            Ok(None)
+        }
+
     }
 
     pub fn remove(&mut self, key: String) -> Result<Option<String>> {
@@ -68,19 +81,27 @@ impl KvStore {
     }
 
     fn start_up(&mut self){
-        let mut buf = String::new();
-        self.file.read_to_string(&mut buf)
-            .unwrap();
-        for log_str in buf.lines(){
-            let log: Log = serde_json::from_str(log_str).unwrap();
-            match log.command {
-                Command::SET  => self.memory_db.insert(log.key,log.value),
-                Command::RM => self.memory_db.remove(&*log.key),
-                _ => Some("SUCCESS".to_string())
-            };
-
+        let mut f = BufReader::new(&self.file);
+        let mut byte_size = 1;
+        let mut line_offset = Ok(0);
+        while  byte_size > 0 {
+            let mut buf = String::new();
+             line_offset = f.stream_position();
+            byte_size =  f.read_line(&mut buf)
+                .unwrap();
+            if(byte_size > 0){
+               // println!("BUF: {}", buf);
+                let log: Log = serde_json::from_str(&*buf).unwrap();
+               // println!("log: {:?}", log);
+                match log.command {
+                    Command::SET  => self.memory_db.insert(log.key,line_offset.unwrap()),
+                    Command::RM => self.memory_db.remove(&*log.key),
+                    _ => Some(0u64)
+                };
+            }
 
         }
+
     }
 
 }
