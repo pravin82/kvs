@@ -14,7 +14,7 @@ use serde_json::to_string;
 
 pub struct KvStore {
     file: File,
-   pub memory_db:HashMap<String,String>
+    memory_db:HashMap<String,String>
 }
 
 
@@ -27,16 +27,23 @@ impl KvStore {
         Ok(Some("SUCCESS".to_string()))
     }
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        let memory_map:HashMap<String,String> = HashMap::new();
         let mut buf = String::new();
-        self.file.read_to_string(&mut buf)
+          self.file.read_to_string(&mut buf)
             .unwrap();
-    //   eprintln!("Buf: {}",buf);
-        Ok((Some(buf)))
+        for log_str in buf.lines(){
+            let log: Log = serde_json::from_str(log_str).unwrap();
+            self.memory_db.insert(log.key,log.value);
+
+        }
+        let value = self.memory_db.get(&*key);
+        Ok(value.cloned())
     }
 
     pub fn remove(&mut self, key: String) -> Result<Option<String>> {
-        Ok((Some("df".to_string())))
+        let log = Log{command: Command::RM,key:key.to_string(), value: "".to_string() };
+        let log_str = serde_json::to_string(&log);
+        let resp = writeln!(self.file,"{}",log_str.unwrap());
+        Ok((Some("SUCCESS".to_string())))
     }
     pub fn open(path:&Path)->Result<KvStore>{
         let memory_db = HashMap::new();
@@ -64,7 +71,7 @@ enum Command{
 #[derive(Debug)]
 pub struct Log{
     command:Command,
-   pub key:String,
-   pub value:String
+    key:String,
+    value:String
 }
 

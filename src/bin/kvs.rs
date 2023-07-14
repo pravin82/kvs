@@ -47,19 +47,20 @@ fn main() {
             let key = _matches.value_of("KEY").unwrap();
             let mut store = KvStore::open(current_dir().unwrap().as_path()).unwrap();
             let value =  store.get(key.to_string()).unwrap().unwrap();
-            let logs = value.lines();
-            for log_str in logs{
-                let log: Log = serde_json::from_str(log_str).unwrap();
-                //eprintln!("log:{:?}",log);
-                store.memory_db.insert(log.key,log.value);
-
-            }
-            println!("{}",store.memory_db.get(key).unwrap());
+            println!("{}",value);
             exit(0);
         }
         ("rm", Some(_matches)) => {
-            eprintln!("unimplemented");
-            exit(1);
+            let key = _matches.value_of("KEY").unwrap();
+            let mut store = KvStore::open(current_dir().unwrap().as_path()).unwrap();
+            let value =  store.get(key.to_string()).unwrap();
+           if let Some(i) = value{
+                  store.remove(key.to_string());
+            } else {
+                println!("Key not found");
+               exit(1);
+            }
+            exit(0);
         }
         _ => unreachable!(),
     }
