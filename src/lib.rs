@@ -31,10 +31,7 @@ impl KvStore {
         let log = Log{command: Command::SET,key:key.to_string(),value:value.to_string()};
         let log_str = serde_json::to_string(&log).unwrap();
         let current_position = self.file.stream_position().unwrap();
-        println!("SET,WRITING LOG, {} AT OFFSET, {:?}",log_str, self.file.stream_position());
-        println!("SELF_SIZE, {}",self.size);
         let resp = writeln!(self.file,"{}",log_str);
-        println!("WRITE_RESP, {:?}",resp);
         if(resp.is_ok()){
             self.memory_db.insert(key, current_position);
             self.size = self.size + log_str.len()
@@ -47,7 +44,6 @@ impl KvStore {
         let mut f = BufReader::new(&self.file);
         let mut buf = String::new();
         let line_offset = self.memory_db.get(&*key);
-        println!("l_o_k: {:?}, {}", line_offset, key);
         if let Some(i) = line_offset {
             f.seek(SeekFrom::Start(*line_offset.unwrap()));
             let value = self.memory_db.get(&*key);
@@ -88,7 +84,6 @@ impl KvStore {
             .open(path.join("log.txt"))
             .unwrap();
         let path_buf = path.to_path_buf();
-        println!("SELF FILE AT OPEN: , {:?}", file);
         let mut store = KvStore{path:path_buf,file,memory_db, size: 0 };
         store.start_up();
         Ok (store)
@@ -107,7 +102,6 @@ impl KvStore {
     }
 
     fn compact(&mut self){
-        println!("Compact triggered");
         let mut new_file = self.get_new_file();
         let mut f = BufReader::new(File::open(self.path.join("log.txt")).unwrap());
         let mut byte_size = 1;
@@ -117,19 +111,13 @@ impl KvStore {
             line_offset = f.stream_position();
             byte_size =  f.read_line(&mut buf)
                 .unwrap();
-            println!("BYTE_SIZE: {}", byte_size);
-            println!("LINE_OFFSET: {:?}", line_offset);
             if(byte_size > 0){
                 let log: Log = serde_json::from_str(&*buf).unwrap();
                 let log_str = serde_json::to_string(&log).unwrap();
                 match log.command {
                     Command::SET  => {
                       let key_offset =   self.memory_db.get(&*log.key).unwrap();
-                        println!("k_off_cl: {}", key_offset.clone());
-                        println!("l_offset: {}", line_offset.as_ref().unwrap().clone());
                         if(key_offset.clone()  == line_offset.unwrap()) {
-                            println!("Writing to new file, {} at offset {:?}",buf, new_file.stream_position() );
-
                              writeln!(new_file,"{}",log_str);
                         }
                     }
@@ -148,13 +136,8 @@ impl KvStore {
             .open(self.path.join("log.txt"))
             .unwrap();
         self.file = file;
-        pprintln!("SELF FILE AT COMPACT: , {:?}", self.file);
         self.size = 0;
         self.start_up();
-        println!("COM,START_UP FINISHED")
-
-
-
     }
 
     fn start_up(&mut self){
@@ -164,14 +147,10 @@ impl KvStore {
         while  byte_size > 0 {
             let mut buf = String::new();
              line_offset = f.stream_position();
-            println!("SU_LINE_OFFSET: {}", line_offset.as_ref().unwrap());
             byte_size =  f.read_line(&mut buf)
                 .unwrap();
-            println!("SU_BYTE_SIZE: {}", byte_size);
             if(byte_size > 0){
-                println!("SU_BUF: {}", buf);
                 let log: Log = serde_json::from_str(&*buf).unwrap();
-               println!("SU_log: {:?}", log);
                 match log.command {
                     Command::SET  => self.memory_db.insert(log.key,line_offset.unwrap()),
                     Command::RM => self.memory_db.remove(&*log.key),
