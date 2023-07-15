@@ -273,6 +273,8 @@ fn compaction() -> Result<()> {
     };
 
     let mut current_size = dir_size();
+    println!("Started: {:?}",current_size);
+
     for iter in 0..1000 {
         for key_id in 0..1000 {
             let key = format!("key{}", key_id);
@@ -281,10 +283,14 @@ fn compaction() -> Result<()> {
         }
 
         let new_size = dir_size();
+        println!("CS: {:?}",current_size);
+        println!("NS: {:?}",new_size);
         if new_size > current_size {
+            println!("Inside if");
             current_size = new_size;
             continue;
         }
+        println!("Before CT");
         // Compaction triggered.
 
         drop(store);
