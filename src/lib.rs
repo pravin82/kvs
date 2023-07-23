@@ -58,16 +58,17 @@ impl KvStore {
     pub fn remove(&mut self, key: String) -> Result<Option<String>> {
         let log = Log{command: Command::RM,key:key.to_string(), value: "".to_string() };
         let value = self.get(key.clone()).unwrap();
-        if let Some(_i) = value {
-            let log_str = serde_json::to_string(&log);
-            let resp = writeln!(self.file,"{}",log_str.unwrap());
-            if resp.is_ok(){
-              self.memory_db.remove(&*key);
-            }
-            return Ok(Some("SUCCESS".to_string()))
-        } else {
-         return   Err(KvsError::KeyNotFound);
+        if let Some(i) = value {
+                let log_str = serde_json::to_string(&log);
+                let resp = writeln!(self.file,"{}",log_str.unwrap());
+                if resp.is_ok(){
+                    self.memory_db.remove(&*key);
+                }
+                return Ok(Some("SUCCESS".to_string()))
+            
         }
+
+        return Err(KvsError::KeyNotFound);
 
 
     }
@@ -158,12 +159,55 @@ impl KvStore {
         }
 
     }
+   pub fn handle_str_msg(&mut self,msg:String)->Msg{
+        let log: Log = serde_json::from_str(&*msg).unwrap();
+        self.handle_log(log)
+    }
+    fn handle_log(&mut self,log:Log)->Msg{
+       return match log.command {
+            Command::SET=> {
+              let rs =   self.set(log.key,log.value);
+                Msg{status:"SUCCESS".to_string(), value:"".to_string()}
+            }
+           Command::GET=> {
+              let rs =   self.get(log.key).unwrap();
+               if let Some(i) = rs {
+                  Msg{status:"SUCCESS".to_string(), value:i}
+               }
+               else {
+                   Msg{status: "SUCCESS".to_string(), value:"Key not found".to_string()}
+               }
+
+            }
+            Command::RM=> {
+              let rs =   self.remove(log.key).unwrap_or_else(|_|None);
+                let mut status = "SUCCESS".to_string();
+                let mut value = "".to_string();
+                println!("RS Msg:{:?}",rs);
+                if let Some(i) = rs {
+
+                }
+                else {
+                    status = "ERROR".to_string();
+                    value = "Key not found".to_string()
+
+                }
+                let msg =  Msg{status:status, value:value};
+                println!("RM Msg:{:?}",msg);
+                msg
+
+
+
+            }
+        }
+
+    }
 
 }
 
 #[derive(Serialize, Deserialize)]
 #[derive(Debug)]
-enum Command{
+pub enum Command{
     SET,
     RM,
     GET
@@ -171,9 +215,16 @@ enum Command{
 #[derive(Serialize, Deserialize)]
 #[derive(Debug)]
 pub struct Log{
-    command:Command,
-    key:String,
-    value:String
+    pub command:Command,
+    pub key:String,
+    pub value:String
 }
+#[derive(Serialize, Deserialize)]
+#[derive(Debug)]
+pub struct Msg{
+    pub status:String,
+    pub value:String
+}
+
 
 
