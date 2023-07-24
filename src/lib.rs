@@ -8,6 +8,9 @@ use std::{fs};
 use std::io::{BufReader, SeekFrom};
 pub use error::{KvsError,Result};
 mod error;
+mod kvs_engine;
+pub use kvs_engine::KvsEngine;
+
 
 extern crate failure;
 
@@ -18,60 +21,12 @@ pub struct KvStore {
     size:usize
 }
 
-pub struct KvsEngine;
 
 
 
 impl KvStore {
 
-    pub fn set(&mut self, key: String, value: String) -> Result<Option<String>> {
 
-        let log = Log{command: Command::SET,key:key.to_string(),value:value.to_string()};
-        let log_str = serde_json::to_string(&log).unwrap();
-        let current_position = self.file.stream_position().unwrap();
-        let resp = writeln!(self.file,"{}",log_str);
-        if resp.is_ok(){
-            self.memory_db.insert(key, current_position);
-            self.size = self.size + log_str.len()
-        }
-        if self.size >= 100000{ self.compact();}
-
-        Ok(Some("SUCCESS".to_string()))
-    }
-    pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        let mut f = BufReader::new(&self.file);
-        let mut buf = String::new();
-        let line_offset = self.memory_db.get(&*key);
-        if let Some(_i) = line_offset {
-            f.seek(SeekFrom::Start(*line_offset.unwrap()));
-            f.read_line(&mut buf);
-            let log: Log = serde_json::from_str(&*buf).unwrap();
-            Ok(Some(log.value))
-
-        }
-        else {
-            Ok(None)
-        }
-
-    }
-
-    pub fn remove(&mut self, key: String) -> Result<Option<String>> {
-        let log = Log{command: Command::RM,key:key.to_string(), value: "".to_string() };
-        let value = self.get(key.clone()).unwrap();
-        if let Some(i) = value {
-                let log_str = serde_json::to_string(&log);
-                let resp = writeln!(self.file,"{}",log_str.unwrap());
-                if resp.is_ok(){
-                    self.memory_db.remove(&*key);
-                }
-                return Ok(Some("SUCCESS".to_string()))
-            
-        }
-
-        return Err(KvsError::KeyNotFound);
-
-
-    }
     pub fn open(path: &Path)->Result<KvStore>{
         let memory_db = HashMap::new();
         let  file = OpenOptions::new()
@@ -200,6 +155,58 @@ impl KvStore {
 
             }
         }
+
+    }
+
+}
+
+impl KvsEngine for KvStore {
+     fn set(&mut self, key: String, value: String) -> Result<Option<String>> {
+
+        let log = Log{command: Command::SET,key:key.to_string(),value:value.to_string()};
+        let log_str = serde_json::to_string(&log).unwrap();
+        let current_position = self.file.stream_position().unwrap();
+        let resp = writeln!(self.file,"{}",log_str);
+        if resp.is_ok(){
+            self.memory_db.insert(key, current_position);
+            self.size = self.size + log_str.len()
+        }
+        if self.size >= 100000{ self.compact();}
+
+        Ok(Some("SUCCESS".to_string()))
+    }
+     fn get(&mut self, key: String) -> Result<Option<String>> {
+        let mut f = BufReader::new(&self.file);
+        let mut buf = String::new();
+        let line_offset = self.memory_db.get(&*key);
+        if let Some(_i) = line_offset {
+            f.seek(SeekFrom::Start(*line_offset.unwrap()));
+            f.read_line(&mut buf);
+            let log: Log = serde_json::from_str(&*buf).unwrap();
+            Ok(Some(log.value))
+
+        }
+        else {
+            Ok(None)
+        }
+
+    }
+
+     fn remove(&mut self, key: String) -> Result<Option<String>> {
+        let log = Log{command: Command::RM,key:key.to_string(), value: "".to_string() };
+        let value = self.get(key.clone()).unwrap();
+        if let Some(i) = value {
+            let log_str = serde_json::to_string(&log);
+            let resp = writeln!(self.file,"{}",log_str.unwrap());
+            if resp.is_ok(){
+                self.memory_db.remove(&*key);
+            }
+            return Ok(Some("SUCCESS".to_string()))
+
+        }
+
+        return Err(KvsError::KeyNotFound);
+
 
     }
 

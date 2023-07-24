@@ -10,6 +10,7 @@ use std::process::exit;
 use kvs::KvStore;
 use log::{info, warn,error};
 use log::*;
+use kvs::KvsEngine;
 
 fn main() {
     stderrlog::new().module(module_path!()).init().unwrap();
