@@ -15,7 +15,7 @@ use kvs::KvsEngine;
 fn main() {
     stderrlog::new().module(module_path!()).init().unwrap();
     error!("version: {}",env!("CARGO_PKG_VERSION") );
-    let engine_in_use = "".to_string();
+    let mut engine_in_use = "".to_string();
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -61,6 +61,7 @@ fn main() {
         println!("Wrong engine selected");
         exit(1)
     };
+    engine_in_use = engine.to_string();
     error!("Config \n host:{} \n engine: {}", addr, engine);
     let listener = TcpListener::bind(addr).unwrap();
     let mut store = KvStore::open(current_dir().unwrap().as_path()).unwrap();
