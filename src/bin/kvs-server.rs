@@ -7,10 +7,10 @@ use std::net::{TcpListener, TcpStream};
 use std::ops::Deref;
 use clap::{App, Arg, SubCommand};
 use std::process::exit;
-use kvs::KvStore;
 use log::{info, warn,error};
 use log::*;
 use kvs::KvsEngine;
+use kvs::KvStore;
 
 fn main() {
     stderrlog::new().module(module_path!()).init().unwrap();
