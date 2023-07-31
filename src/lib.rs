@@ -11,6 +11,7 @@ pub use error::{KvsError,Result};
 mod error;
 mod kvs_engine;
 mod kv_store;
+pub mod thread_pool;
 
 pub use kvs_engine::KvsEngine;
 pub use kv_store::KvStore;
@@ -36,12 +37,12 @@ impl SledKvsEngine {
 }
 
 impl KvsEngine for SledKvsEngine{
-    fn set(&mut self, key: String, value: String) -> Result<Option<String>> {
+    fn set( &self, key: String, value: String) -> Result<Option<String>> {
          self.db.insert(key,sled::IVec::from(value.as_bytes()));
         Ok(Some("SUCCESS".to_string()))
     }
 
-    fn get(&mut self, key: String) -> Result<Option<String>> {
+    fn get( &self, key: String) -> Result<Option<String>> {
        let resp =  self.db.get(key).unwrap();
         if let Some(i) = resp {
             let val = std::str::from_utf8 (&i).unwrap();
@@ -52,7 +53,7 @@ impl KvsEngine for SledKvsEngine{
 
     }
 
-    fn remove(&mut self, key: String) -> Result<Option<String>> {
+    fn remove( &self, key: String) -> Result<Option<String>> {
         let resp = self.db.remove(key).unwrap();
         if let Some(i) = resp {
             Ok(Some("SUCCESS".to_string()))

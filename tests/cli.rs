@@ -86,7 +86,6 @@ fn client_cli_invalid_set() {
         .failure();
 }
 
-
 #[test]
 fn client_cli_invalid_rm() {
     let temp_dir = TempDir::new().unwrap();

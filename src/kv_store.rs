@@ -7,13 +7,15 @@ use crate::{Command, KvsEngine, KvsError, Log, Msg};
 use super::error;
 use error::Result;
 use std::io::Write;
+use std::clone::Clone;
+use std::ops::Deref;
+use std::sync::Arc;
 
 
-
-
+#[derive(Clone)]
 pub struct KvStore {
     path: PathBuf,
-    file: File,
+    file: Arc<File>,
     memory_db:HashMap<String,u64>,
     size:usize
 }
@@ -32,7 +34,8 @@ impl KvStore {
             .open(path.join("log.txt"))
             .unwrap();
         let path_buf = path.to_path_buf();
-        let mut store = KvStore{path:path_buf,file,memory_db, size: 0 };
+        let arc_file = Arc::new(file);
+        let mut store = KvStore{path:path_buf,file:arc_file,memory_db, size: 0 };
         store.start_up();
         Ok (store)
     }
@@ -83,13 +86,13 @@ impl KvStore {
             .create(true)
             .open(self.path.join("log.txt"))
             .unwrap();
-        self.file = file;
+        self.file = Arc::new(file);
         self.size = 0;
         self.start_up();
     }
 
     fn start_up(&mut self){
-        let mut f = BufReader::new(&self.file);
+        let mut f = BufReader::new(self.file.deref());
         let mut byte_size = 1;
         let mut line_offset = Ok(0);
         while  byte_size > 0 {
@@ -109,11 +112,11 @@ impl KvStore {
         }
 
     }
-    pub fn handle_str_msg(&mut self,msg:String)->Msg{
+    pub fn handle_str_msg( &self,msg:String)->Msg{
         let log: Log = serde_json::from_str(&*msg).unwrap();
         self.handle_log(log)
     }
-    fn handle_log(&mut self,log:Log)->Msg{
+    fn handle_log( &self,log:Log)->Msg{
         return match log.command {
             Command::SET=> {
                 let rs =   self.set(log.key,log.value);
@@ -156,22 +159,22 @@ impl KvStore {
 }
 
 impl KvsEngine for KvStore {
-    fn set(&mut self, key: String, value: String) -> Result<Option<String>> {
-
+    fn set( &self, key: String, value: String) -> Result<Option<String>> {
+        let mut cloned_self = self.clone();
         let log = Log{command: Command::SET,key:key.to_string(),value:value.to_string()};
         let log_str = serde_json::to_string(&log).unwrap();
-        let current_position = self.file.stream_position().unwrap();
-        let resp = writeln!(self.file,"{}",log_str);
+        let current_position = cloned_self.file.deref().stream_position().unwrap();
+        let resp = writeln!(cloned_self.file.deref(),"{}",log_str);
         if resp.is_ok(){
-            self.memory_db.insert(key, current_position);
-            self.size = self.size + log_str.len()
+            cloned_self.memory_db.insert(key, current_position);
+            cloned_self.size = cloned_self.size + log_str.len()
         }
-        if self.size >= 100000{ self.compact();}
+        if cloned_self.size >= 100000{ cloned_self.compact();}
 
         Ok(Some("SUCCESS".to_string()))
     }
-    fn get(&mut self, key: String) -> Result<Option<String>> {
-        let mut f = BufReader::new(&self.file);
+    fn get( &self, key: String) -> Result<Option<String>> {
+        let mut f = BufReader::new(self.file.deref());
         let mut buf = String::new();
         let line_offset = self.memory_db.get(&*key);
         if let Some(_i) = line_offset {
@@ -187,14 +190,15 @@ impl KvsEngine for KvStore {
 
     }
 
-    fn remove(&mut self, key: String) -> Result<Option<String>> {
+    fn remove( &self, key: String) -> Result<Option<String>> {
         let log = Log{command: Command::RM,key:key.to_string(), value: "".to_string() };
-        let value = self.get(key.clone()).unwrap();
+        let mut cloned_self = self.clone();
+        let value = cloned_self.get(key.clone()).unwrap();
         if let Some(i) = value {
             let log_str = serde_json::to_string(&log);
-            let resp = writeln!(self.file,"{}",log_str.unwrap());
+            let resp = writeln!(cloned_self.file.deref(),"{}",log_str.unwrap());
             if resp.is_ok(){
-                self.memory_db.remove(&*key);
+                cloned_self.memory_db.remove(&*key);
             }
             return Ok(Some("SUCCESS".to_string()))
 
