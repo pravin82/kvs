@@ -24,7 +24,7 @@ extern crate failure;
 
 
 
-
+#[derive(Clone)]
 pub struct SledKvsEngine{
     db:Db
 }

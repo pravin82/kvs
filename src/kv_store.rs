@@ -9,15 +9,15 @@ use error::Result;
 use std::io::Write;
 use std::clone::Clone;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 
 #[derive(Clone)]
 pub struct KvStore {
     path: PathBuf,
-    file: Arc<File>,
-    memory_db:HashMap<String,u64>,
-    size:usize
+    file: Arc<Mutex<File>>,
+    memory_db:Arc<Mutex<HashMap<String,u64>>>,
+    size:Arc<Mutex<usize>>
 }
 
 
@@ -25,7 +25,7 @@ impl KvStore {
 
 
     pub fn open(path: &Path)->Result<KvStore>{
-        let memory_db = HashMap::new();
+        let memory_db =Arc::new(Mutex::new( HashMap::new()));
         let  file = OpenOptions::new()
             .write(true)
             .append(true)
@@ -34,8 +34,8 @@ impl KvStore {
             .open(path.join("log.txt"))
             .unwrap();
         let path_buf = path.to_path_buf();
-        let arc_file = Arc::new(file);
-        let mut store = KvStore{path:path_buf,file:arc_file,memory_db, size: 0 };
+        let arc_file = Arc::new(Mutex::new(file));
+        let mut store = KvStore{path:path_buf,file:arc_file,memory_db, size: Arc::new(Mutex::new(0)) };
         store.start_up();
         Ok (store)
     }
@@ -52,7 +52,7 @@ impl KvStore {
 
     }
 
-    fn compact(&mut self){
+    fn compact( &self){
         let mut new_file = self.get_new_file();
         let mut f = BufReader::new(File::open(self.path.join("log.txt")).unwrap());
         let mut byte_size = 1;
@@ -65,9 +65,10 @@ impl KvStore {
             if byte_size > 0{
                 let log: Log = serde_json::from_str(&*buf).unwrap();
                 let log_str = serde_json::to_string(&log).unwrap();
+                let memory_db = self.memory_db.deref().lock().unwrap();
                 match log.command {
                     Command::SET  => {
-                        let key_offset =   self.memory_db.get(&*log.key).unwrap();
+                        let key_offset =   memory_db.get(&*log.key).unwrap();
                         if key_offset.clone()  == line_offset.unwrap() {
                             writeln!(new_file,"{}",log_str);
                         }
@@ -86,13 +87,17 @@ impl KvStore {
             .create(true)
             .open(self.path.join("log.txt"))
             .unwrap();
-        self.file = Arc::new(file);
-        self.size = 0;
+        let mut mut_file = self.file.lock().unwrap();
+        let mut mut_size = self.size.lock().unwrap();
+       *mut_file = file;
+        *mut_size = 0;
         self.start_up();
     }
 
-    fn start_up(&mut self){
-        let mut f = BufReader::new(self.file.deref());
+    fn start_up(&self){
+        let binding = self.file.lock().unwrap();
+        let file = binding.deref();
+        let mut f = BufReader::new(file);
         let mut byte_size = 1;
         let mut line_offset = Ok(0);
         while  byte_size > 0 {
@@ -102,9 +107,10 @@ impl KvStore {
                 .unwrap();
             if byte_size > 0{
                 let log: Log = serde_json::from_str(&*buf).unwrap();
+                let mut memory_db = self.memory_db.lock().unwrap();
                 match log.command {
-                    Command::SET  => self.memory_db.insert(log.key,line_offset.unwrap()),
-                    Command::RM => self.memory_db.remove(&*log.key),
+                    Command::SET  => memory_db.insert(log.key,line_offset.unwrap()),
+                    Command::RM => memory_db.remove(&*log.key),
                     _ => Some(0u64)
                 };
             }
@@ -159,24 +165,33 @@ impl KvStore {
 }
 
 impl KvsEngine for KvStore {
-    fn set( &self, key: String, value: String) -> Result<Option<String>> {
-        let mut cloned_self = self.clone();
+    fn set(&self, key: String, value: String) -> Result<Option<String>> {
         let log = Log{command: Command::SET,key:key.to_string(),value:value.to_string()};
         let log_str = serde_json::to_string(&log).unwrap();
-        let current_position = cloned_self.file.deref().stream_position().unwrap();
-        let resp = writeln!(cloned_self.file.deref(),"{}",log_str);
+        let mut file = self.file.lock().unwrap();
+        let current_position = file.deref().stream_position().unwrap();
+        let resp = writeln!(file,"{}",log_str);
+        let mut memory_db = self.memory_db.lock().unwrap();
         if resp.is_ok(){
-            cloned_self.memory_db.insert(key, current_position);
-            cloned_self.size = cloned_self.size + log_str.len()
+            memory_db.insert(key, current_position);
+            let mut size= self.size.lock().unwrap();
+            *size = *size + log_str.len()
+
         }
-        if cloned_self.size >= 100000{ cloned_self.compact();}
+        let  size = self.size.lock().unwrap().deref().clone();
+        if size >= 100000{ self.compact();}
 
         Ok(Some("SUCCESS".to_string()))
     }
     fn get( &self, key: String) -> Result<Option<String>> {
-        let mut f = BufReader::new(self.file.deref());
+        let binding = self.memory_db.lock().unwrap();
+        let memory_db = binding.deref();
+        let file = self.file.lock().unwrap().try_clone().unwrap();
+        let mut f = BufReader::new(file);
         let mut buf = String::new();
-        let line_offset = self.memory_db.get(&*key);
+        let line_offset = memory_db.get(&*key);
+        println!("GET MEMDB: {:?}", self.memory_db);
+        println!("Get LO:{:?}", line_offset);
         if let Some(_i) = line_offset {
             f.seek(SeekFrom::Start(*line_offset.unwrap()));
             f.read_line(&mut buf);
@@ -192,13 +207,14 @@ impl KvsEngine for KvStore {
 
     fn remove( &self, key: String) -> Result<Option<String>> {
         let log = Log{command: Command::RM,key:key.to_string(), value: "".to_string() };
-        let mut cloned_self = self.clone();
-        let value = cloned_self.get(key.clone()).unwrap();
+        let mut file = self.file.lock().unwrap();
+        let mut memory_db = self.memory_db.lock().unwrap();
+        let value = self.get(key.clone()).unwrap();
         if let Some(i) = value {
             let log_str = serde_json::to_string(&log);
-            let resp = writeln!(cloned_self.file.deref(),"{}",log_str.unwrap());
+            let resp = writeln!(*file,"{}",log_str.unwrap());
             if resp.is_ok(){
-                cloned_self.memory_db.remove(&*key);
+                memory_db.remove(&*key);
             }
             return Ok(Some("SUCCESS".to_string()))
 
