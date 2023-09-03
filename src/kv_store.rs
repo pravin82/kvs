@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub struct KvStore {
-    path: PathBuf,
+    path:  PathBuf,
     file: Arc<Mutex<File>>,
     memory_db:Arc<Mutex<HashMap<String,u64>>>,
     size:Arc<Mutex<usize>>

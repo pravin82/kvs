@@ -11,11 +11,13 @@ use log::{info, warn,error};
 use log::*;
 use kvs::KvsEngine;
 use kvs::KvStore;
+use kvs::thread_pool::{NaiveThreadPool, ThreadPool};
 
 fn main() {
     stderrlog::new().module(module_path!()).init().unwrap();
     error!("version: {}",env!("CARGO_PKG_VERSION") );
     let mut engine_in_use = "".to_string();
+    let pool = NaiveThreadPool::new(4).unwrap();
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -64,27 +66,32 @@ fn main() {
     engine_in_use = engine.to_string();
     error!("Config \n host:{} \n engine: {}", addr, engine);
     let listener = TcpListener::bind(addr).unwrap();
-    let mut store = KvStore::open(current_dir().unwrap().as_path()).unwrap();
     // accept connections and process them serially
     for mut stream_res in listener.incoming() {
-        let mut stream = stream_res.unwrap();
-        println!("stream: {:?}",stream);
-        let mut reader = BufReader::new(&mut stream);
-        let received: Vec<u8> = reader.fill_buf().unwrap().to_vec();
-        reader.consume(received.len());
-       let rs =  String::from_utf8(received)
-            .map(|msg| store.handle_str_msg(msg))
-            .map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Couldn't parse received string as utf8",
-                )
-            });
-        let value = rs.unwrap();
-        println!("value to be sent: {:?}", value);
-        let value_str = serde_json::to_string(&value).unwrap();
-        stream.write(value_str.as_bytes());
+        let  store = KvStore::open(current_dir().unwrap().as_path()).unwrap().clone();
+        pool.spawn(
+          move  ||
+            {
+                let mut stream = stream_res.unwrap();
+                println!("stream: {:?}", stream);
+                let mut reader = BufReader::new(&mut stream);
+                let received: Vec<u8> = reader.fill_buf().unwrap().to_vec();
+                reader.consume(received.len());
+                let rs = String::from_utf8(received)
+                    .map(|msg| store.handle_str_msg(msg))
+                    .map_err(|_| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "Couldn't parse received string as utf8",
+                        )
+                    });
+                let value = rs.unwrap();
+                println!("value to be sent: {:?}", value);
+                let value_str = serde_json::to_string(&value).unwrap();
+                stream.write(value_str.as_bytes());
+            }
 
+        )
 
 
     }
