@@ -1,2 +1,2 @@
 # kvs
-Key value store written in Rust
+Key value store database written in Rust
