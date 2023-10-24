@@ -6,5 +6,8 @@ For running the server cd into project directory and  run this command
 ```
  cargo run --bin kvs-server
 ```
+For running the client cd into project directory and run this command
+```
+cargo run --bin kvs-client
 
 
